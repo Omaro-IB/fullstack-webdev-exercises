@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import {useEffect, useState} from 'react'
+import axios from "axios";
+const SERVER_URL = "http://localhost:3001/persons"
 
 // Filter component
 const Filter = ({newFilter, setNewFilter}) => (
@@ -31,12 +33,17 @@ const Persons = ({filter, persons}) => {
 
 const App = () => {
     // States
-    const [persons, setPersons] = useState([
-        {name: 'Arto Hellas', number: '040-1234567', id: 1}
-    ])
+    const [persons, setPersons] = useState([])
     const [newName, setNewName] = useState('')
     const [newNumber, setNewNumber] = useState('')
     const [newFilter, setNewFilter] = useState('')
+
+    // Effects, get 'persons' from server
+    useEffect(() => {
+        axios.get(SERVER_URL).then(response => {
+            setPersons(response.data)
+        })
+    }, []);
 
     // Handles 'add' button click
     const handleClick = (e) => {
