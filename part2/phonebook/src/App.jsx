@@ -1,6 +1,5 @@
 import {useEffect, useState} from 'react'
-import axios from "axios";
-const SERVER_URL = "http://localhost:3001/persons"
+import phoneService from "./services/phoneService.js";
 
 // Filter component
 const Filter = ({newFilter, setNewFilter}) => (
@@ -19,16 +18,13 @@ const PersonForm = ({newName, setNewName, newNumber, setNewNumber, handleClick})
 )
 
 // A single person
-const Person = ({name, number}) => (
-    <li>{name} {number}</li>
+const Person = ({name, number, onDelete}) => (
+    <div style = {{display: 'flex', flexDirection: 'row'}}>
+        <div>{name} {number}</div>
+        <div style={{width:"30px"}}> </div>
+        <button onClick={onDelete}>delete</button>
+    </div>
 )
-
-
-// List of persons
-const Persons = ({filter, persons}) => {
-    const personsToShow = (filter === '') ? persons : persons.filter(p => (p.name.toUpperCase().includes(filter.toUpperCase())))
-    return (<div>{personsToShow.map(p => <Person key={p.id} name={p.name} number={p.number}></Person>)}</div>)
-}
 
 
 const App = () => {
@@ -40,28 +36,57 @@ const App = () => {
 
     // Effects, get 'persons' from server
     useEffect(() => {
-        axios.get(SERVER_URL).then(response => {
-            setPersons(response.data)
+        phoneService.getAll().then(data => {
+            setPersons(data)
         })
     }, []);
 
+
+    // List of persons
+    const Persons = () => {
+        const personsToShow = (newFilter === '') ? persons : persons.filter(p => (p.name.toUpperCase().includes(newFilter.toUpperCase())))
+        return (<div>{personsToShow.map(p => <Person key={p.id} name={p.name} number={p.number} onDelete={() => {
+            if (window.confirm("Do you really want to delete?")) {
+                phoneService.deletePerson(p.id).then(data => setPersons(persons.filter(p => p.id !== data.id)))
+            }
+        }}
+        ></Person>)}</div>)
+    }
+
+
     // Handles 'add' button click
-    const handleClick = (e) => {
+    const handleAdd = (e) => {
         e.preventDefault()  // prevent page reload
-        let addPerson = true
-        persons.forEach(p=> {if (p.name === newName) {alert(`${p.name} is already added to phonebook`); addPerson = false}});  // check for already-existing person
-        if (addPerson) {setPersons(persons.concat({name: newName, number: newNumber, id: persons.length+1}))}  // add person if does not already exist
+        let personExists = -1  // -1 if doesn't exist, else ID of the duplicate person
+
+        persons.forEach(p => {if (p.name === newName) {personExists = p.id}});  // check for already-existing person
+
+        if (personExists === -1) {  // add person if does not already exist
+            const newPerson = {name: newName, number: newNumber, id: (persons.length+1).toString()}
+            phoneService.createPerson(newPerson).then(data => {
+                setPersons(persons.concat(data))
+            })
+        } else {  // if exists, update upon user confirmation
+            if (window.confirm(`"${newName}" is already added to the phonebook, replace the old number with the new one?`)) {
+                const newPerson = {name: newName, number: newNumber, id: personExists}
+                phoneService.updatePerson(personExists, newPerson).then(data => {
+                    setPersons(persons.map(p => {if (p.id === data.id) {return data} else {return p}}))
+                })
+            }
+        }
+
         setNewName(''); setNewNumber('')  // reset fields
     }
+
 
     return (
         <div>
             <h1>Phonebook</h1>
             <Filter newFilter={newFilter} setNewFilter={setNewFilter} />
-            <h2>add a new</h2>
-            <PersonForm newName={newName} setNewName={setNewName} newNumber={newNumber} setNewNumber={setNewNumber} handleClick={handleClick} />
+            <h2>Add New Entry</h2>
+            <PersonForm newName={newName} setNewName={setNewName} newNumber={newNumber} setNewNumber={setNewNumber} handleClick={handleAdd} />
             <h2>Numbers</h2>
-            <Persons filter = {newFilter} persons = {persons}></Persons>
+            <Persons />
         </div>
     )
 }
