@@ -19,7 +19,7 @@ const PersonForm = ({newName, setNewName, newNumber, setNewNumber, handleClick})
 
 // A single person
 const Person = ({name, number, onDelete}) => (
-    <div style = {{display: 'flex', flexDirection: 'row'}}>
+    <div className={"person"} style = {{display: 'flex', flexDirection: 'row'}}>
         <div>{name} {number}</div>
         <div style={{width:"30px"}}> </div>
         <button onClick={onDelete}>delete</button>
@@ -33,13 +33,32 @@ const App = () => {
     const [newName, setNewName] = useState('')
     const [newNumber, setNewNumber] = useState('')
     const [newFilter, setNewFilter] = useState('')
+    const [message, setMessage] = useState('')
+    const [messageType, setMessageType] = useState('notification')
 
-    // Effects, get 'persons' from server
-    useEffect(() => {
+    // Message
+    const Message = () => {
+        if (message.length > 0) {return <div className={messageType}>{message}</div>}
+        else {return <div></div>}
+    }
+    const displayMessage = (msg, type) => {
+        setMessageType(type)
+        setMessage(msg)
+        setTimeout(() => {setMessage("")}, 3000)
+    }
+
+
+    // Refresh data
+    const refreshData = () => {
         phoneService.getAll().then(data => {
             setPersons(data)
+        }).catch(_ => {
+            displayMessage("Error getting data from server", "error")
         })
-    }, []);
+    }
+
+    // Effects, get 'persons' from server
+    useEffect(refreshData, []);
 
 
     // List of persons
@@ -47,7 +66,12 @@ const App = () => {
         const personsToShow = (newFilter === '') ? persons : persons.filter(p => (p.name.toUpperCase().includes(newFilter.toUpperCase())))
         return (<div>{personsToShow.map(p => <Person key={p.id} name={p.name} number={p.number} onDelete={() => {
             if (window.confirm("Do you really want to delete?")) {
-                phoneService.deletePerson(p.id).then(data => setPersons(persons.filter(p => p.id !== data.id)))
+                phoneService.deletePerson(p.id).then(data => {
+                    displayMessage(`Deleted ${data.name}`, "notification")
+                    setPersons(persons.filter(p => p.id !== data.id))
+                }).catch(_ => {
+                    displayMessage(`${p.name} already deleted from server`, "error")
+                    refreshData()})
             }
         }}
         ></Person>)}</div>)
@@ -58,19 +82,30 @@ const App = () => {
     const handleAdd = (e) => {
         e.preventDefault()  // prevent page reload
         let personExists = -1  // -1 if doesn't exist, else ID of the duplicate person
+        let largestID = -1
 
-        persons.forEach(p => {if (p.name === newName) {personExists = p.id}});  // check for already-existing person
+        persons.forEach(p => {
+            if (p.name === newName) {personExists = p.id}
+            if (parseInt(p.id) > largestID) {largestID = parseInt(p.id)}
+        });  // check for already-existing person & for largest ID
 
         if (personExists === -1) {  // add person if does not already exist
-            const newPerson = {name: newName, number: newNumber, id: (persons.length+1).toString()}
+            const newPerson = {name: newName, number: newNumber, id: (largestID+1).toString()}
             phoneService.createPerson(newPerson).then(data => {
                 setPersons(persons.concat(data))
+                displayMessage(`Added ${newName}`, "notification")
+            }).catch(_ => {
+                displayMessage("Error creating person", "error")
             })
         } else {  // if exists, update upon user confirmation
             if (window.confirm(`"${newName}" is already added to the phonebook, replace the old number with the new one?`)) {
                 const newPerson = {name: newName, number: newNumber, id: personExists}
                 phoneService.updatePerson(personExists, newPerson).then(data => {
                     setPersons(persons.map(p => {if (p.id === data.id) {return data} else {return p}}))
+                    displayMessage(`Updated ${newName}`, "notification")
+                }).catch(_ => {
+                    setPersons(persons.filter(p => p.id !== personExists))
+                    displayMessage(`${newName} already deleted from server`, "error")
                 })
             }
         }
@@ -81,6 +116,7 @@ const App = () => {
 
     return (
         <div>
+            <Message />
             <h1>Phonebook</h1>
             <Filter newFilter={newFilter} setNewFilter={setNewFilter} />
             <h2>Add New Entry</h2>
