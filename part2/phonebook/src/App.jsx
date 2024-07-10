@@ -56,9 +56,7 @@ const App = () => {
             displayMessage("Error getting data from server", "error")
         })
     }
-
-    // Effects, get 'persons' from server
-    useEffect(refreshData, []);
+    useEffect(refreshData, []);  // refresh on first render
 
 
     // List of persons
